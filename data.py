@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pandas as pd
 
+import sheets
+
 # Master workbook + companion entries folder (both next to this file).
 EXCEL_PATH = Path(__file__).parent / "Master Evaluation Sheet.xlsx"
 ENTRIES_DIR = Path(__file__).parent / "entries"
@@ -41,6 +43,15 @@ ENTRY_SHEETS = {
 }
 NOTES_CSV = "notes.csv"
 
+# When backed by Google Sheets, appended entries live in these append-only tabs
+# (the master tabs stay formula-driven and are never written to).
+ENTRY_TABS = {
+    "power": "Entries - Power",
+    "armcare": "Entries - Arm Care",
+    "pitching": "Entries - Pitching",
+}
+NOTES_TAB = "Entries - Notes"
+
 
 def _clean_names(df: pd.DataFrame) -> pd.DataFrame:
     """Trim whitespace from column names (mirrors R clean_names)."""
@@ -60,26 +71,50 @@ def _read_entries_csv(fname: str) -> "pd.DataFrame | None":
         return None
 
 
+def _read_entries(key: str) -> "pd.DataFrame | None":
+    """Appended entries for a key, from the Sheet tab (live) or local CSV."""
+    if sheets.sheets_enabled():
+        df = sheets.read_tab_optional(ENTRY_TABS[key])
+        return _clean_names(df) if df is not None else None
+    return _read_entries_csv(ENTRY_SHEETS[key][0])
+
+
+def _read_notes_extra() -> "pd.DataFrame | None":
+    if sheets.sheets_enabled():
+        df = sheets.read_tab_optional(NOTES_TAB)
+        return _clean_names(df) if df is not None else None
+    return _read_entries_csv(NOTES_CSV)
+
+
 def load_data(path: str | Path = EXCEL_PATH) -> dict[str, pd.DataFrame]:
-    """Read every master sheet, then merge any appended CSV entries."""
-    xl = pd.ExcelFile(path)
+    """Read every master sheet, then merge any appended entries.
+
+    Reads from the live Google Sheet when configured (see sheets.py), else from
+    the local Excel workbook + entries/ CSVs. Both paths are non-destructive:
+    the formula-driven master is never written to.
+    """
+    use_sheets = sheets.sheets_enabled()
+    xl = None if use_sheets else pd.ExcelFile(path)
     db: dict[str, pd.DataFrame] = {}
     for key, (sheet, id_col) in _SHEETS.items():
-        df = _clean_names(pd.read_excel(xl, sheet_name=sheet))
+        if use_sheets:
+            df = _clean_names(sheets.read_tab(sheet))
+        else:
+            df = _clean_names(pd.read_excel(xl, sheet_name=sheet))
         if id_col in df.columns:
             df = df[df[id_col].notna()].reset_index(drop=True)
         db[key] = df
 
     # Merge appended tabular entries (non-destructive; master never rewritten).
     for key, (fname, id_col) in ENTRY_SHEETS.items():
-        extra = _read_entries_csv(fname)
+        extra = _read_entries(key)
         if extra is not None and id_col in extra.columns:
             merged = pd.concat([db[key], extra], ignore_index=True)
             merged = merged[merged[id_col].notna()].reset_index(drop=True)
             db[key] = merged
 
     # Companion coaching notes (long format), merged by get_notes().
-    db["notes_extra"] = _read_entries_csv(NOTES_CSV)
+    db["notes_extra"] = _read_notes_extra()
     return db
 
 

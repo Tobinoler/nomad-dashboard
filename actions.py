@@ -14,6 +14,7 @@ from datetime import datetime
 import pandas as pd
 
 import data as D
+import sheets
 
 
 # ---------------------------------------------------------------------------
@@ -42,16 +43,23 @@ def add_entry(kind: str, values: dict):
     # keep only non-empty values
     clean = {k: v for k, v in values.items()
              if v is not None and str(v).strip() != ""}
+    if sheets.sheets_enabled():
+        sheets.append_row_dict(D.ENTRY_TABS[kind], clean)
+        return D.ENTRY_TABS[kind]
     return _append_csv(fname, clean)
 
 
 def add_coaches_note(athlete: str, date_val, notes: str, video: str | None = None):
-    return _append_csv(D.NOTES_CSV, {
+    row = {
         "Name": athlete,
         "Date": _iso(date_val),
         "Notes": notes,
         "Video": (video or ""),
-    })
+    }
+    if sheets.sheets_enabled():
+        sheets.append_row_dict(D.NOTES_TAB, row)
+        return D.NOTES_TAB
+    return _append_csv(D.NOTES_CSV, row)
 
 
 def armcare_total_score(ir, er, scaption, grip, body_weight):

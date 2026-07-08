@@ -4,6 +4,12 @@ Master Evaluation Sheet.xlsx
 *.xls
 *.csv
 
+# --- Credentials / secrets: NEVER commit these ---
+service_account.json
+credentials*.json
+*-service-account*.json
+.env
+
 # --- Python ---
 __pycache__/
 *.py[cod]
