@@ -1,0 +1,7 @@
+shiny>=1.0
+shinywidgets>=0.3
+plotly>=5.20
+pandas>=2.0
+openpyxl>=3.1
+faicons>=0.2
+reportlab>=4.0
