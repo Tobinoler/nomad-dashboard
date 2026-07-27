@@ -86,23 +86,46 @@ def _read_notes_extra() -> "pd.DataFrame | None":
     return _read_entries_csv(NOTES_CSV)
 
 
+# Parsed master tabs are cached here so repeated load_data() calls (startup,
+# and after every saved entry) don't re-parse the whole ~450KB workbook, which
+# openpyxl does at ~1s a time. Keyed by (path, mtime) so an edited file reloads.
+_MASTER_CACHE: dict = {}
+
+
+def _read_master(path: str | Path) -> dict[str, pd.DataFrame]:
+    """Read + cache the raw master tabs (live Sheet when configured, else xlsx)."""
+    if sheets.sheets_enabled():
+        return {key: _clean_names(sheets.read_tab(sheet))
+                for key, (sheet, _id) in _SHEETS.items()}
+
+    cache_key = (str(path), Path(path).stat().st_mtime)
+    if cache_key not in _MASTER_CACHE:
+        _MASTER_CACHE.clear()  # only keep the current file version
+        xl = pd.ExcelFile(path)
+        _MASTER_CACHE[cache_key] = {
+            key: _clean_names(pd.read_excel(xl, sheet_name=sheet))
+            for key, (sheet, _id) in _SHEETS.items()
+        }
+    return _MASTER_CACHE[cache_key]
+
+
 def load_data(path: str | Path = EXCEL_PATH) -> dict[str, pd.DataFrame]:
     """Read every master sheet, then merge any appended entries.
 
     Reads from the live Google Sheet when configured (see sheets.py), else from
     the local Excel workbook + entries/ CSVs. Both paths are non-destructive:
-    the formula-driven master is never written to.
+    the formula-driven master is never written to. The master parse is cached
+    (see _read_master); only the small appended entries are re-read each call.
     """
-    use_sheets = sheets.sheets_enabled()
-    xl = None if use_sheets else pd.ExcelFile(path)
+    master = _read_master(path)
     db: dict[str, pd.DataFrame] = {}
     for key, (sheet, id_col) in _SHEETS.items():
-        if use_sheets:
-            df = _clean_names(sheets.read_tab(sheet))
-        else:
-            df = _clean_names(pd.read_excel(xl, sheet_name=sheet))
+        df = master[key]
+        # filter to real rows; always return a fresh frame (never the cached one)
         if id_col in df.columns:
             df = df[df[id_col].notna()].reset_index(drop=True)
+        else:
+            df = df.copy()
         db[key] = df
 
     # Merge appended tabular entries (non-destructive; master never rewritten).
