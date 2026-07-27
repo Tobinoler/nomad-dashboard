@@ -98,7 +98,14 @@ def _read_master(path: str | Path) -> dict[str, pd.DataFrame]:
         return {key: _clean_names(sheets.read_tab(sheet))
                 for key, (sheet, _id) in _SHEETS.items()}
 
-    cache_key = (str(path), Path(path).stat().st_mtime)
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(
+            f"Data source not found: '{p.name}' is missing next to the app, and "
+            "Google Sheets sync is not configured. Either include the workbook in "
+            "the deployment, or set NOMAD_SHEET_ID + service-account credentials "
+            "to read the live Sheet.")
+    cache_key = (str(path), p.stat().st_mtime)
     if cache_key not in _MASTER_CACHE:
         _MASTER_CACHE.clear()  # only keep the current file version
         xl = pd.ExcelFile(path)
