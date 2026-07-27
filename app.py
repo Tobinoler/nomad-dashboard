@@ -49,6 +49,25 @@ POWER_METRICS = ["Body Weight", "Vert- Regular", "Vert- CMJ", "Vert- Step In",
                  "Squat (1.00% BW)", "Trap Bar (1.25% BW)", "Triple Broad Jump"]
 ARMCARE_METRICS = ["Total Score", "IR", "ER", "Scaption", "Grip", "Body Weight"]
 
+# Athlete comparison — display label -> (db key, name column, date column, value column).
+# Uses each athlete's most recent test for the metric.
+COMPARE_METRICS = {
+    "Body Weight (lbs)":        ("power", "Name", "Test Date", "Body Weight"),
+    "Vertical – Regular (in)":  ("power", "Name", "Test Date", "Vert- Regular"),
+    "Vertical – CMJ (in)":      ("power", "Name", "Test Date", "Vert- CMJ"),
+    "Vertical – Step-In (in)":  ("power", "Name", "Test Date", "Vert- Step In"),
+    "MB Shot Put – Left":       ("power", "Name", "Test Date", "4lb MB Shot Put (Left)"),
+    "MB Shot Put – Right":      ("power", "Name", "Test Date", "4lb MB Shot Put (Right)"),
+    "Squat (1.00% BW)":         ("power", "Name", "Test Date", "Squat (1.00% BW)"),
+    "Trap Bar (1.25% BW)":      ("power", "Name", "Test Date", "Trap Bar (1.25% BW)"),
+    "Triple Broad Jump":        ("power", "Name", "Test Date", "Triple Broad Jump"),
+    "Arm Care – Total Score":   ("armcare", "Athlete", "Date", "Total Score"),
+    "Arm Care – IR":            ("armcare", "Athlete", "Date", "IR"),
+    "Arm Care – ER":            ("armcare", "Athlete", "Date", "ER"),
+    "Arm Care – Grip":          ("armcare", "Athlete", "Date", "Grip"),
+    "Arm Care – Scaption":      ("armcare", "Athlete", "Date", "Scaption"),
+}
+
 
 # =============================================================================
 # SMALL UI HELPERS
@@ -128,19 +147,49 @@ def trend_fig(hist: pd.DataFrame, metric: str, unit: str = ""):
 
 
 # =============================================================================
-# CSS
+# THEME + CSS
 # =============================================================================
+# Clean Bootswatch preset, brand blue as primary so charts + UI stay cohesive.
+THEME = ui.Theme("cosmo").add_defaults(primary=PRIMARY)
+
 APP_CSS = ui.tags.style("""
-  body { background:#f4f6f9; }
-  .athlete-bar { font-size:15px; color:#555; margin:-4px 0 10px 2px; }
-  .athlete-bar b { color:#3c8dbc; }
+  :root { --brand:#3c8dbc; --brand-2:#00a65a; }
+  body { background:#f4f6f9; -webkit-font-smoothing:antialiased;
+         text-rendering:optimizeLegibility; }
+  .athlete-bar { font-size:15px; color:#555; margin:-4px 0 14px 2px; }
+  .athlete-bar b { color:var(--brand); }
+
+  /* Cards: soft, elevated, subtle hover lift */
+  .card { border:none !important; border-radius:12px !important;
+          box-shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+          transition:box-shadow .18s ease, transform .18s ease; }
+  .card:hover { box-shadow:0 8px 22px rgba(16,24,40,.10); }
+  .card-header { background:transparent !important;
+                 border-bottom:1px solid #eef0f3 !important;
+                 font-weight:600; letter-spacing:.2px; }
+
+  /* Value boxes */
+  .bslib-value-box { border-radius:12px !important;
+                     box-shadow:0 1px 3px rgba(16,24,40,.06) !important; }
+
+  /* Nav pills */
+  .nav-pills { gap:4px; margin-bottom:16px; }
+  .nav-pills .nav-link { color:#54606d; border-radius:8px; font-weight:500;
+                         padding:7px 14px; transition:background .15s,color .15s; }
+  .nav-pills .nav-link:hover { background:#e9eef3; color:var(--brand); }
+  .nav-pills .nav-link.active { background:var(--brand) !important; color:#fff;
+                         box-shadow:0 2px 6px rgba(60,141,188,.35); }
+
+  /* Sidebar */
+  .btn-outline-primary { border-radius:8px; }
+
   .section-header { font-size:16px; font-weight:bold;
                     border-bottom:2px solid #3c8dbc;
                     margin-bottom:10px; padding-bottom:4px; }
   .plan-card { background:#f9f9f9; border-left:4px solid #3c8dbc;
-               padding:12px; margin-bottom:12px; border-radius:4px; }
+               padding:12px; margin-bottom:12px; border-radius:8px; }
   .video-no-data { padding:40px 20px; color:#888; text-align:center;
-                   background:#f5f5f5; border-radius:6px; margin-top:10px; }
+                   background:#f5f5f5; border-radius:8px; margin-top:10px; }
   .entry-hint { color:#777; font-size:13px; margin-bottom:8px; }
 
   .cn-timeline { position:relative; padding:10px 0; }
@@ -175,6 +224,7 @@ app_ui = ui.page_sidebar(
         width=260,
     ),
     APP_CSS,
+    ui.busy_indicators.use(spinners=True, pulse=True),
     ui.output_ui("athlete_bar"),
     ui.navset_pill(
 
@@ -197,6 +247,28 @@ app_ui = ui.page_sidebar(
                 ui.output_ui("video_player"),
             ),
             icon=ico("user"),
+        ),
+
+        # ---- COMPARE -------------------------------------------------------
+        ui.nav_panel(
+            "Compare",
+            ui.card(
+                ui.card_header("Compare Athletes"),
+                ui.layout_columns(
+                    ui.input_selectize(
+                        "cmp_athletes", "Athletes to compare", choices=ATHLETES,
+                        multiple=True,
+                        selected=ATHLETES[:3] if len(ATHLETES) >= 3 else ATHLETES),
+                    ui.input_select("cmp_metric", "Strength metric",
+                                    choices=list(COMPARE_METRICS.keys()),
+                                    selected="Arm Care – Total Score"),
+                    col_widths={"sm": [12, 12], "lg": [7, 5]},
+                ),
+            ),
+            ui.card(ui.card_header("Ranked Comparison"), output_widget("compare_chart")),
+            ui.card(ui.card_header("All Strength Numbers (latest per athlete)"),
+                    ui.output_data_frame("compare_table")),
+            icon=ico("scale-balanced"),
         ),
 
         # ---- MOTOR ---------------------------------------------------------
@@ -365,6 +437,7 @@ app_ui = ui.page_sidebar(
         id="tabs",
     ),
     title="Athlete Dashboard",
+    theme=THEME,
     fillable=False,
 )
 
@@ -516,6 +589,56 @@ def server(input, output, session):
             return ui.div(ui.p(f"No {angle} view available for {input.athlete()}."),
                           class_="video-no-data")
         return vid
+
+    # =========================================================================
+    # COMPARE ATHLETES
+    # =========================================================================
+    def _metric_value(db, athlete, spec):
+        """Latest numeric value of one COMPARE_METRICS spec for an athlete."""
+        key, name_col, date_col, col = spec
+        row = A.latest_row(db[key], name_col, athlete, date_col)
+        return D.safe_num(D.cell(row, col))
+
+    @render_widget
+    def compare_chart():
+        chosen = list(input.cmp_athletes() or [])
+        label = input.cmp_metric()
+        if not chosen:
+            return empty_fig(label, "Pick one or more athletes to compare")
+        spec = COMPARE_METRICS[label]
+        pairs = [(a, _metric_value(DB(), a, spec)) for a in chosen]
+        pairs = [(a, v) for a, v in pairs if v is not None]
+        if not pairs:
+            return empty_fig(label, f"No {label} recorded for the selected athletes")
+        pairs.sort(key=lambda p: p[1], reverse=True)
+        names = [a for a, _ in pairs]
+        vals = [v for _, v in pairs]
+        # highlight the currently-selected sidebar athlete, if in the set
+        colors = [GREEN if a == input.athlete() else PRIMARY for a in names]
+        fig = go.Figure(go.Bar(
+            x=vals, y=names, orientation="h", marker_color=colors,
+            text=[f"{v:g}" for v in vals], textposition="outside",
+            hovertemplate="%{y}: %{x}<extra></extra>"))
+        fig.update_layout(
+            title=f"{label} — ranked", xaxis_title=label, yaxis_title="",
+            yaxis=dict(autorange="reversed"), margin=dict(t=50, l=10, r=30, b=30),
+            plot_bgcolor="white", height=max(260, 46 * len(names) + 90), showlegend=False)
+        return fig
+
+    @render.data_frame
+    def compare_table():
+        chosen = list(input.cmp_athletes() or [])
+        if not chosen:
+            return render.DataGrid(pd.DataFrame({"Message": ["Select athletes to compare"]}))
+        db = DB()
+        table = {"Metric": list(COMPARE_METRICS.keys())}
+        for a in chosen:
+            col = []
+            for spec in COMPARE_METRICS.values():
+                v = _metric_value(db, a, spec)
+                col.append("—" if v is None else f"{v:g}")
+            table[a] = col
+        return render.DataGrid(pd.DataFrame(table), width="100%")
 
     # =========================================================================
     # MOTOR

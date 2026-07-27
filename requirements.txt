@@ -7,3 +7,4 @@ faicons>=0.2
 reportlab>=4.0
 gspread>=6.0
 google-auth>=2.30
+libsass>=0.23
