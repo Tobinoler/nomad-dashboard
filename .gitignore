@@ -1,6 +1,9 @@
-# --- Sensitive data: keep athlete data out of version control ---
-Master Evaluation Sheet.xlsx
+# --- Sensitive data ---
+# The master workbook is intentionally bundled so the hosted app has data.
+# This is safe ONLY because the repo is PRIVATE. Once the Google Sheets
+# backend is live, delete the file from the repo and drop the "!" exception.
 *.xlsx
+!Master Evaluation Sheet.xlsx
 *.xls
 *.csv
 

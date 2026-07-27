@@ -19,6 +19,8 @@ Data:
 """
 from __future__ import annotations
 
+import os
+
 import pandas as pd
 import plotly.graph_objects as go
 from shiny import App, reactive, render, ui
@@ -26,6 +28,12 @@ from shinywidgets import output_widget, render_widget
 
 import actions as A
 import data as D
+import sheets
+
+# On a hosted server the filesystem is ephemeral, so appended entries won't
+# persist unless the live Google Sheets backend is on. Set NOMAD_HOSTED=1 in
+# the host's environment to surface a heads-up banner on the Data Entry tab.
+HOSTED = bool(os.environ.get("NOMAD_HOSTED"))
 
 try:
     from faicons import icon_svg
@@ -1075,6 +1083,16 @@ def server(input, output, session):
     # =========================================================================
     @render.ui
     def entry_target():
+        if HOSTED and not sheets.sheets_enabled():
+            return ui.div(
+                ui.HTML("&#9888;&#65039; <b>Saving is turned off on the shared server.</b> "
+                        "New entries won't persist yet — this turns on once live "
+                        "Google&nbsp;Sheets sync is enabled. You can still browse "
+                        "everything and generate PDFs."),
+                class_="entry-hint",
+                style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;"
+                      "padding:11px 13px;border-radius:8px;font-size:13.5px;",
+            )
         return ui.div(
             ui.HTML(f"New entries will be saved for <b>{input.athlete()}</b> "
                     "(switch athletes in the sidebar). The master workbook is never "
