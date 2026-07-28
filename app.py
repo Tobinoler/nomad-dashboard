@@ -120,9 +120,13 @@ def tile(label, value, color):
 
 
 def tile_row(items, col_widths):
-    """items: list of (label, value); each tile gets a distinct color."""
-    tiles = [tile(lab, val, TILE_COLORS[i % len(TILE_COLORS)])
-             for i, (lab, val) in enumerate(items)]
+    """items: (label, value) for an auto palette color, or (label, value, color)
+    to override — e.g. a semantic health color. Auto colors stay distinct by row."""
+    tiles = []
+    for i, item in enumerate(items):
+        lab, val = item[0], item[1]
+        color = item[2] if len(item) > 2 and item[2] else TILE_COLORS[i % len(TILE_COLORS)]
+        tiles.append(tile(lab, val, color))
     return ui.layout_columns(*tiles, col_widths=col_widths)
 
 
@@ -1078,13 +1082,23 @@ def server(input, output, session):
         date_str = D.fmt_date(D.cell(a, "Date"), "%b %d, %Y") or "No data"
         score = D.safe_num(D.cell(a, "Total Score"))
         score_disp = str(round(score, 1)) if score is not None else "No data"
+        # Total Score keeps its health signal: green >=100, amber >=80, red below.
+        if score is None:
+            sc_color = "#8a8f97"
+        elif score >= 100:
+            sc_color = GREEN
+        elif score >= 80:
+            sc_color = ORANGE
+        else:
+            sc_color = RED
         bw = D.safe_num(D.cell(a, "Body Weight"))
         grip = D.safe_num(D.cell(a, "Grip"))
+        # Cool hues on the other tiles so none clash with the score's warm signal.
         return tile_row([
-            ("Last Tested", date_str),
-            ("Total Score", score_disp),
-            ("Body Weight", f"{bw} lbs" if bw is not None else "No data"),
-            ("Grip Strength", f"{grip} lbs" if grip is not None else "No data"),
+            ("Last Tested", date_str, "#2c3e50"),
+            ("Total Score", score_disp, sc_color),
+            ("Body Weight", f"{bw} lbs" if bw is not None else "No data", "#2e8b83"),
+            ("Grip Strength", f"{grip} lbs" if grip is not None else "No data", "#4a6c8c"),
         ], CW4)
 
     @render.table
