@@ -106,6 +106,26 @@ def vbox(title, value, icon="circle", theme="primary"):
     return ui.value_box(title, str(value), showcase=ico(icon), theme=theme)
 
 
+# Compact "Style A" stat tiles — a curated, brand-harmonious categorical palette.
+# tile_row assigns colors by position so no hue repeats within a displayed row.
+TILE_COLORS = ["#ec5b2a", "#2c3e50", "#2e8b83", "#d99a2b",
+               "#4a6c8c", "#2f9e60", "#9b5b8f", "#b8632f"]
+
+
+def tile(label, value, color):
+    return ui.div(
+        ui.div(label, class_="t-l"),
+        ui.div(str(value), class_="t-v"),
+        class_="tileA", style=f"background:{color};")
+
+
+def tile_row(items, col_widths):
+    """items: list of (label, value); each tile gets a distinct color."""
+    tiles = [tile(lab, val, TILE_COLORS[i % len(TILE_COLORS)])
+             for i, (lab, val) in enumerate(items)]
+    return ui.layout_columns(*tiles, col_widths=col_widths)
+
+
 # Responsive column widths: stack on phones, spread on desktop.
 CW4 = {"sm": [6, 6, 6, 6], "lg": [3, 3, 3, 3]}
 CW3 = {"sm": [12, 6, 6], "lg": [4, 4, 4]}
@@ -219,6 +239,24 @@ APP_CSS = ui.tags.style("""
   .bslib-value-box { border-radius:12px !important;
                      box-shadow:0 1px 3px rgba(16,24,40,.06) !important; }
   .value-box-value { font-weight:700; font-variant-numeric:tabular-nums; }
+
+  /* Compact stat tiles (Style A) */
+  .tileA { border-radius:10px; padding:10px 12px; color:#fff;
+           box-shadow:0 1px 3px rgba(16,24,40,.08); }
+  .tileA .t-l { font-family:'Cabin',sans-serif; text-transform:uppercase;
+           letter-spacing:.5px; font-size:10.5px; font-weight:700; opacity:.92;
+           line-height:1.2; }
+  .tileA .t-v { font-family:'Cabin',sans-serif; font-weight:700; font-size:21px;
+           margin-top:2px; line-height:1.15; font-variant-numeric:tabular-nums; }
+
+  /* Identity strip (Overview) */
+  .ident { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px;
+           margin:2px 0 14px; color:#5a5e64; font-size:13.5px; }
+  .ident-nm { font-family:'Cabin',sans-serif; font-weight:700; font-size:21px;
+           color:var(--navy); }
+  .ident b { color:#1c222b; font-weight:700; }
+  .ident .dot { display:inline-block; width:5px; height:5px; border-radius:50%;
+           background:#cfc9bf; vertical-align:middle; margin:0 3px; }
 
   /* Nav pills */
   .nav-pills { gap:5px; margin-bottom:16px; }
@@ -575,25 +613,46 @@ def server(input, output, session):
     # =========================================================================
     @render.ui
     def overview_boxes_1():
+        # Identity as a slim strip (name + school/class/team/position/height-weight)
         b = r_bio()
-        return ui.layout_columns(
-            vbox("Athlete", input.athlete(), "user", "primary"),
-            vbox("School", D.cell(b, "High School / College", "—"), "school", "primary"),
-            vbox("Class of", D.cell(b, "Graduating Class", "—"), "graduation-cap", "info"),
-            vbox("Team", D.cell(b, "Select Team", "—"), "users", "secondary"),
-            col_widths=CW4,
-        )
+        pos = " / ".join([str(p) for p in
+                          [D.cell(b, "Position 1"), D.cell(b, "Position 2")] if p])
+        ht, wt = D.cell(b, "Height"), D.cell(b, "Weight")
+        hw = " · ".join([str(x) for x in
+                         [ht, (f"{wt} lbs" if wt is not None else None)] if x])
+        bits = []
+        for val in (D.cell(b, "High School / College"),):
+            if val:
+                bits.append(str(val))
+        cls = D.cell(b, "Graduating Class")
+        if cls:
+            bits.append(f"Class of {cls}")
+        team = D.cell(b, "Select Team")
+        if team:
+            bits.append(str(team))
+        if pos:
+            bits.append(f"<b>{pos}</b>")
+        if hw:
+            bits.append(hw)
+        sep = ' <span class="dot"></span> '
+        meta = (sep + sep.join(bits)) if bits else ""
+        return ui.div(
+            ui.HTML(f'<span class="ident-nm">{input.athlete()}</span>{meta}'),
+            class_="ident")
 
     @render.ui
     def overview_boxes_2():
-        b = r_bio()
-        return ui.layout_columns(
-            vbox("Position 1", D.cell(b, "Position 1", "—"), "star", "primary"),
-            vbox("Position 2", D.cell(b, "Position 2", "—"), "star-half-stroke", "info"),
-            vbox("Height", D.cell(b, "Height", "—"), "ruler-vertical", "success"),
-            vbox("Weight (lbs)", D.cell(b, "Weight", "—"), "weight-hanging", "warning"),
-            col_widths=CW4,
-        )
+        # Key performance numbers as compact tiles (each a distinct hue)
+        fb = D.cell(r_pitching(), "FB Velo (Max)")
+        cmj = D.cell(r_power(), "Vert- CMJ")
+        score = D.safe_num(D.cell(r_armcare(), "Total Score"))
+        bw = D.cell(r_power(), "Body Weight")
+        return tile_row([
+            ("FB Max", f"{fb} mph" if fb is not None else "—"),
+            ("Vert (CMJ)", f'{cmj}"' if cmj is not None else "—"),
+            ("Arm Care Score", f"{round(score, 1)}" if score is not None else "—"),
+            ("Body Weight", f"{bw} lbs" if bw is not None else "—"),
+        ], CW4)
 
     @render.ui
     def overview_summary():
@@ -773,13 +832,12 @@ def server(input, output, session):
             v = D.cell(p, col)
             return f'{v}"' if v is not None else "—"
 
-        return ui.layout_columns(
-            vbox("Body Weight", f"{bw} lbs" if bw is not None else "—", "weight-hanging", "warning"),
-            vbox("Vert (Regular)", vert("Vert- Regular"), "arrow-up", "success"),
-            vbox("Vert (CMJ)", vert("Vert- CMJ"), "arrow-up", "primary"),
-            vbox("Vert (Step-In)", vert("Vert- Step In"), "arrow-up", "info"),
-            col_widths=CW4,
-        )
+        return tile_row([
+            ("Body Weight", f"{bw} lbs" if bw is not None else "—"),
+            ("Vert (Regular)", vert("Vert- Regular")),
+            ("Vert (CMJ)", vert("Vert- CMJ")),
+            ("Vert (Step-In)", vert("Vert- Step In")),
+        ], CW4)
 
     @render_widget
     def mb_chart():
@@ -836,12 +894,11 @@ def server(input, output, session):
         mx = D.cell(p, "FB Velo (Max)")
         av = D.cell(p, "FB Velo (Avg)")
         arsenal = " · ".join(_pitches(p)) or "—"
-        return ui.layout_columns(
-            vbox("FB Max", f"{mx} mph" if mx is not None else "—", "baseball", "danger"),
-            vbox("FB Avg", f"{av} mph" if av is not None else "—", "baseball", "warning"),
-            vbox("Arsenal", arsenal, "list", "primary"),
-            col_widths=CW3,
-        )
+        return tile_row([
+            ("FB Max", f"{mx} mph" if mx is not None else "—"),
+            ("FB Avg", f"{av} mph" if av is not None else "—"),
+            ("Arsenal", arsenal),
+        ], CW3)
 
     @render.ui
     def pitch_arsenal():
@@ -1020,22 +1077,15 @@ def server(input, output, session):
         a = r_armcare()
         date_str = D.fmt_date(D.cell(a, "Date"), "%b %d, %Y") or "No data"
         score = D.safe_num(D.cell(a, "Total Score"))
-        if score is None:
-            score_disp, score_theme = "No data", "secondary"
-        else:
-            score_disp = str(round(score, 1))
-            score_theme = "success" if score >= 100 else "warning" if score >= 80 else "danger"
+        score_disp = str(round(score, 1)) if score is not None else "No data"
         bw = D.safe_num(D.cell(a, "Body Weight"))
         grip = D.safe_num(D.cell(a, "Grip"))
-        return ui.layout_columns(
-            vbox("Last Tested", date_str, "calendar", "primary"),
-            vbox("Total Score", score_disp, "star", score_theme),
-            vbox("Body Weight", f"{bw} lbs" if bw is not None else "No data",
-                 "weight-hanging", "warning"),
-            vbox("Grip Strength", f"{grip} lbs" if grip is not None else "No data",
-                 "hand-fist", "info"),
-            col_widths=CW4,
-        )
+        return tile_row([
+            ("Last Tested", date_str),
+            ("Total Score", score_disp),
+            ("Body Weight", f"{bw} lbs" if bw is not None else "No data"),
+            ("Grip Strength", f"{grip} lbs" if grip is not None else "No data"),
+        ], CW4)
 
     @render.table
     def armcare_table():
@@ -1098,12 +1148,11 @@ def server(input, output, session):
         n = len(entries)
         first = entries[0]["date"] if n else "—"
         last = entries[-1]["date"] if n else "—"
-        return ui.layout_columns(
-            vbox("Total Sessions", n, "chalkboard-user", "primary" if n else "danger"),
-            vbox("First Session", first, "calendar-plus", "success"),
-            vbox("Latest Session", last, "calendar-check", "info"),
-            col_widths=CW3,
-        )
+        return tile_row([
+            ("Total Sessions", n),
+            ("First Session", first),
+            ("Latest Session", last),
+        ], CW3)
 
     @render.ui
     def coaches_timeline():
