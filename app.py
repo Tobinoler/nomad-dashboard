@@ -19,7 +19,9 @@ Data:
 """
 from __future__ import annotations
 
+import base64
 import os
+from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -35,6 +37,14 @@ import sheets
 # the host's environment to surface a heads-up banner on the Data Entry tab.
 HOSTED = bool(os.environ.get("NOMAD_HOSTED"))
 
+# Brand logo (white-on-transparent Nomad Baseball mark), embedded so it travels
+# with the deployment and needs no static-asset config.
+_LOGO = Path(__file__).parent / "logo.png"
+LOGO_URI = (
+    "data:image/png;base64," + base64.b64encode(_LOGO.read_bytes()).decode()
+    if _LOGO.exists() else None
+)
+
 try:
     from faicons import icon_svg
 except Exception:
@@ -47,10 +57,13 @@ except Exception:
 _db0 = D.load_data()
 ATHLETES = D.athlete_names(_db0)
 
-PRIMARY = "#3c8dbc"
-GREEN = "#00a65a"
-RED = "#dd4b39"
-ORANGE = "#f39c12"
+# Nomad Baseball brand palette
+PRIMARY = "#ec5b2a"   # orange — brand accent + theme primary + main data series
+NAVY = "#131821"      # dark rail + secondary data series
+CREAM = "#faf9f7"     # page background
+GREEN = "#1f9d57"     # semantic: good / positive
+RED = "#d1442f"       # semantic: attention / injury
+ORANGE = "#e0a12a"    # secondary accent (amber)
 
 POWER_METRICS = ["Body Weight", "Vert- Regular", "Vert- CMJ", "Vert- Step In",
                  "4lb MB Shot Put (Left)", "4lb MB Shot Put (Right)",
@@ -157,15 +170,41 @@ def trend_fig(hist: pd.DataFrame, metric: str, unit: str = ""):
 # =============================================================================
 # THEME + CSS
 # =============================================================================
-# Clean Bootswatch preset, brand blue as primary so charts + UI stay cohesive.
-THEME = ui.Theme("cosmo").add_defaults(primary=PRIMARY)
+# Nomad Baseball brand: cosmo preset, orange primary, navy secondary.
+THEME = ui.Theme("cosmo").add_defaults(primary=PRIMARY, secondary=NAVY)
+
+# Cabin (headings/labels) + Lato (body) — the fonts from nomadbaseball.com.
+FONT_LINK = ui.head_content(ui.tags.link(
+    rel="stylesheet",
+    href=("https://fonts.googleapis.com/css2?family=Cabin:wght@500;600;700"
+          "&family=Lato:wght@400;700&display=swap")))
 
 APP_CSS = ui.tags.style("""
-  :root { --brand:#3c8dbc; --brand-2:#00a65a; }
-  body { background:#f4f6f9; -webkit-font-smoothing:antialiased;
-         text-rendering:optimizeLegibility; }
-  .athlete-bar { font-size:15px; color:#555; margin:-4px 0 14px 2px; }
+  :root { --brand:#ec5b2a; --navy:#131821; --cream:#faf9f7; }
+  body { background:var(--cream); -webkit-font-smoothing:antialiased;
+         text-rendering:optimizeLegibility;
+         font-family:'Lato',system-ui,-apple-system,sans-serif; }
+  h1,h2,h3,h4,h5,h6,.card-header,.section-header,.value-box-title,
+  .value-box-value,.nav-link,label,.btn {
+         font-family:'Cabin',system-ui,sans-serif; }
+
+  .athlete-bar { font-size:15px; color:#5a5e64; margin:-4px 0 14px 2px; }
   .athlete-bar b { color:var(--brand); }
+
+  /* ---- Sidebar: dark navy rail with the logo ---- */
+  .bslib-sidebar-layout > .sidebar,
+  .bslib-sidebar-layout > .sidebar > .sidebar-content {
+        background:var(--navy) !important; color:#c9ced6; }
+  .sidebar-brand { padding:4px 2px 2px; }
+  .sidebar-brand img { display:block; width:100%; max-width:150px; margin:0 auto; }
+  .bslib-sidebar-layout > .sidebar label { color:#aeb4bd !important;
+        text-transform:uppercase; letter-spacing:.6px; font-size:12px;
+        font-weight:700; }
+  .bslib-sidebar-layout > .sidebar hr { border-top:1px solid #2a313d; }
+  .bslib-sidebar-layout > .sidebar .form-select { border:none;
+        box-shadow:0 1px 2px rgba(0,0,0,.3); font-weight:600; }
+  .sidebar-foot { margin-top:auto; font-size:11.5px; color:#6b727e;
+        letter-spacing:.3px; padding-top:10px; }
 
   /* Cards: soft, elevated, subtle hover lift */
   .card { border:none !important; border-radius:12px !important;
@@ -173,49 +212,50 @@ APP_CSS = ui.tags.style("""
           transition:box-shadow .18s ease, transform .18s ease; }
   .card:hover { box-shadow:0 8px 22px rgba(16,24,40,.10); }
   .card-header { background:transparent !important;
-                 border-bottom:1px solid #eef0f3 !important;
-                 font-weight:600; letter-spacing:.2px; }
+                 border-bottom:1px solid #ece9e3 !important;
+                 font-weight:700; letter-spacing:.2px; }
 
   /* Value boxes */
   .bslib-value-box { border-radius:12px !important;
                      box-shadow:0 1px 3px rgba(16,24,40,.06) !important; }
+  .value-box-value { font-weight:700; font-variant-numeric:tabular-nums; }
 
   /* Nav pills */
-  .nav-pills { gap:4px; margin-bottom:16px; }
-  .nav-pills .nav-link { color:#54606d; border-radius:8px; font-weight:500;
+  .nav-pills { gap:5px; margin-bottom:16px; }
+  .nav-pills .nav-link { color:#5b626c; border-radius:8px; font-weight:700;
+                         text-transform:uppercase; letter-spacing:.5px; font-size:13px;
                          padding:7px 14px; transition:background .15s,color .15s; }
-  .nav-pills .nav-link:hover { background:#e9eef3; color:var(--brand); }
+  .nav-pills .nav-link:hover { background:#efece6; color:var(--brand); }
   .nav-pills .nav-link.active { background:var(--brand) !important; color:#fff;
-                         box-shadow:0 2px 6px rgba(60,141,188,.35); }
+                         box-shadow:0 3px 8px rgba(236,91,42,.32); }
 
-  /* Sidebar */
   .btn-outline-primary { border-radius:8px; }
 
-  .section-header { font-size:16px; font-weight:bold;
-                    border-bottom:2px solid #3c8dbc;
+  .section-header { font-size:16px; font-weight:700;
+                    border-bottom:2px solid var(--brand);
                     margin-bottom:10px; padding-bottom:4px; }
-  .plan-card { background:#f9f9f9; border-left:4px solid #3c8dbc;
+  .plan-card { background:#faf8f5; border-left:4px solid var(--brand);
                padding:12px; margin-bottom:12px; border-radius:8px; }
   .video-no-data { padding:40px 20px; color:#888; text-align:center;
-                   background:#f5f5f5; border-radius:8px; margin-top:10px; }
+                   background:#f4f2ee; border-radius:8px; margin-top:10px; }
   .entry-hint { color:#777; font-size:13px; margin-bottom:8px; }
 
   .cn-timeline { position:relative; padding:10px 0; }
   .cn-timeline::before { content:''; position:absolute; left:22px;
       top:0; bottom:0; width:3px;
-      background:linear-gradient(to bottom,#3c8dbc,#00a65a); border-radius:3px; }
+      background:linear-gradient(to bottom,var(--brand),var(--navy)); border-radius:3px; }
   .cn-entry { position:relative; margin-left:58px; margin-bottom:28px; }
   .cn-dot { position:absolute; left:-44px; top:14px; width:16px; height:16px;
-      background:#3c8dbc; border:3px solid #fff; border-radius:50%;
-      box-shadow:0 0 0 2px #3c8dbc; }
-  .cn-card { background:#fff; border:1px solid #e0e0e0;
-      border-left:4px solid #3c8dbc; border-radius:6px; padding:14px 16px;
+      background:var(--brand); border:3px solid var(--cream); border-radius:50%;
+      box-shadow:0 0 0 2px var(--brand); }
+  .cn-card { background:#fff; border:1px solid #ece9e3;
+      border-left:4px solid var(--brand); border-radius:6px; padding:14px 16px;
       box-shadow:0 1px 4px rgba(0,0,0,.07); }
   .cn-date { font-size:12px; font-weight:700; text-transform:uppercase;
-      letter-spacing:.6px; color:#3c8dbc; margin-bottom:6px; }
+      letter-spacing:.6px; color:var(--brand); margin-bottom:6px; }
   .cn-notes { font-size:14px; line-height:1.55; color:#333; margin-bottom:0; }
   .cn-no-data { padding:40px 20px; color:#888; text-align:center;
-      font-size:15px; background:#f9f9f9; border-radius:6px; }
+      font-size:15px; background:#faf8f5; border-radius:6px; }
 """)
 
 
@@ -224,13 +264,17 @@ APP_CSS = ui.tags.style("""
 # =============================================================================
 app_ui = ui.page_sidebar(
     ui.sidebar(
+        ui.div(ui.img(src=LOGO_URI, alt="Nomad Baseball"), class_="sidebar-brand")
+        if LOGO_URI else ui.h4("Nomad Baseball"),
+        ui.hr(),
         ui.input_select("athlete", "Select Athlete", choices=ATHLETES,
                         selected=ATHLETES[0] if ATHLETES else None),
-        ui.hr(),
         ui.download_button("dl_pdf", "Download One-Pager (PDF)",
                            class_="btn-outline-primary btn-sm"),
+        ui.div("Nomad Baseball · internal", class_="sidebar-foot"),
         width=260,
     ),
+    FONT_LINK,
     APP_CSS,
     ui.busy_indicators.use(spinners=True, pulse=True),
     ui.output_ui("athlete_bar"),
@@ -622,7 +666,7 @@ def server(input, output, session):
         names = [a for a, _ in pairs]
         vals = [v for _, v in pairs]
         # highlight the currently-selected sidebar athlete, if in the set
-        colors = [GREEN if a == input.athlete() else PRIMARY for a in names]
+        colors = [PRIMARY if a == input.athlete() else NAVY for a in names]
         fig = go.Figure(go.Bar(
             x=vals, y=names, orientation="h", marker_color=colors,
             text=[f"{v:g}" for v in vals], textposition="outside",
@@ -700,7 +744,7 @@ def server(input, output, session):
                           line=dict(color="#e3e3e3", width=4), layer="below")
         fig.add_trace(go.Scatter(
             x=[r["x"] for r in rows], y=ys, mode="markers",
-            marker=dict(size=20, color=[PRIMARY if r["x"] < 0 else GREEN for r in rows],
+            marker=dict(size=20, color=[PRIMARY if r["x"] < 0 else NAVY for r in rows],
                         line=dict(color="white", width=2)),
             text=[r["text"] for r in rows], hovertemplate="%{text}<extra></extra>",
             showlegend=False))
@@ -745,7 +789,7 @@ def server(input, output, session):
         if left is None or right is None:
             return empty_fig("4lb MB Shot Put")
         fig = go.Figure(go.Bar(x=["Left", "Right"], y=[left, right],
-                               marker_color=[PRIMARY, GREEN]))
+                               marker_color=[PRIMARY, NAVY]))
         fig.update_layout(title="4lb MB Shot Put", yaxis_title="Distance (ft)",
                           showlegend=False)
         return fig
@@ -831,8 +875,8 @@ def server(input, output, session):
             return empty_fig("Fastball velocity", "No dated history yet")
         d = h.dropna(subset=["_date"]).copy()
         fig = go.Figure()
-        for col, color, name in [("FB Velo (Max)", RED, "FB Max"),
-                                 ("FB Velo (Avg)", ORANGE, "FB Avg")]:
+        for col, color, name in [("FB Velo (Max)", PRIMARY, "FB Max"),
+                                 ("FB Velo (Avg)", NAVY, "FB Avg")]:
             if col not in d.columns:
                 continue
             d["_y"] = pd.to_numeric(d[col], errors="coerce")
@@ -1033,7 +1077,7 @@ def server(input, output, session):
         score = D.safe_num(D.cell(a, "Total Score"))
         fig = go.Figure()
         fig.add_bar(x=metrics, y=actuals_plot, name="Athlete", marker_color=PRIMARY)
-        fig.add_bar(x=metrics, y=bench_plot, name="Benchmark", marker_color="#aaaaaa")
+        fig.add_bar(x=metrics, y=bench_plot, name="Benchmark", marker_color="#b8b2a6")
         title = input.athlete()
         if score is not None:
             title += f"<br><sup>Total Score: {round(score, 1)}</sup>"
