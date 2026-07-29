@@ -112,10 +112,20 @@ TILE_COLORS = ["#ec5b2a", "#2c3e50", "#2e8b83", "#d99a2b",
                "#4a6c8c", "#2f9e60", "#9b5b8f", "#b8632f"]
 
 
+# Values that mean "nothing recorded" — these tiles render muted instead of colored.
+EMPTY_MARKS = {"", "-", "—", "no data", "none", "n/a"}
+
+
 def tile(label, value, color):
+    val = str(value)
+    if val.strip().lower() in EMPTY_MARKS:
+        return ui.div(
+            ui.div(label, class_="t-l"),
+            ui.div("Not recorded", class_="t-v"),
+            class_="tileA is-empty")
     return ui.div(
         ui.div(label, class_="t-l"),
-        ui.div(str(value), class_="t-v"),
+        ui.div(val, class_="t-v"),
         class_="tileA", style=f"background:{color};")
 
 
@@ -154,6 +164,11 @@ def make_video_ui(video_val):
             style="margin-top:10px;background:#000;border-radius:6px;overflow:hidden;",
         )
     return None
+
+
+def no_data(msg: str = "Nothing recorded yet"):
+    """Shared empty state so a card with no data never reads as a broken card."""
+    return ui.div(msg, class_="no-data")
 
 
 def empty_fig(title: str = "", note: str = "No data"):
@@ -212,23 +227,50 @@ APP_CSS = ui.tags.style("""
   .value-box-value,.nav-link,label,.btn {
          font-family:'Cabin',system-ui,sans-serif; }
 
-  .athlete-bar { font-size:15px; color:#5a5e64; margin:-4px 0 14px 2px; }
-  .athlete-bar b { color:var(--brand); }
+  /* ---- Top bar: navy, reads as one piece with the sidebar ---- */
+  .navbar, .navbar.navbar-static-top { background:var(--navy) !important;
+        border:none !important; box-shadow:none; }
+  .navbar .container-fluid { padding:0 18px; }
+  h1.bslib-page-title, .navbar-brand { color:#fff !important; margin:0;
+        font-family:'Cabin',sans-serif; font-size:inherit; }
+  .app-titlebar { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  .app-title { font-family:'Cabin',sans-serif; font-weight:700; font-size:19px;
+        letter-spacing:.3px; color:#fff; }
+  .nav-ath { font-family:'Cabin',sans-serif; font-size:14.5px; font-weight:700;
+        color:var(--brand); }
+  .nav-ath-lbl { color:#7f8794; font-weight:700; text-transform:uppercase;
+        letter-spacing:.8px; font-size:10.5px; margin-right:7px; }
 
   /* ---- Sidebar: dark navy rail with the logo ---- */
   .bslib-sidebar-layout > .sidebar,
   .bslib-sidebar-layout > .sidebar > .sidebar-content {
         background:var(--navy) !important; color:#c9ced6; }
-  .sidebar-brand { padding:4px 2px 2px; }
-  .sidebar-brand img { display:block; width:100%; max-width:150px; margin:0 auto; }
+  .bslib-sidebar-layout > .sidebar > .sidebar-content { gap:.55rem; }
+  .sidebar-brand { padding:2px 2px 0; }
+  .sidebar-brand img { display:block; width:100%; max-width:140px; margin:0 auto; }
   .bslib-sidebar-layout > .sidebar label { color:#aeb4bd !important;
         text-transform:uppercase; letter-spacing:.6px; font-size:12px;
-        font-weight:700; }
-  .bslib-sidebar-layout > .sidebar hr { border-top:1px solid #2a313d; }
+        font-weight:700; margin-bottom:4px; }
+  .bslib-sidebar-layout > .sidebar hr { border-top:1px solid #2a313d;
+        margin:.4rem 0 .25rem; }
   .bslib-sidebar-layout > .sidebar .form-select { border:none;
         box-shadow:0 1px 2px rgba(0,0,0,.3); font-weight:600; }
+  .sidebar-count { font-size:11.5px; color:#7d8593; letter-spacing:.3px;
+        margin:-2px 0 0 1px; }
   .sidebar-foot { margin-top:auto; font-size:11.5px; color:#6b727e;
         letter-spacing:.3px; padding-top:10px; }
+
+  /* Searchable athlete picker (selectize) on the dark rail */
+  .bslib-sidebar-layout > .sidebar .selectize-input { border:none !important;
+        border-radius:6px; padding:9px 11px; font-weight:600; color:#1c222b;
+        box-shadow:0 1px 2px rgba(0,0,0,.3) !important; }
+  .bslib-sidebar-layout > .sidebar .selectize-input.focus {
+        box-shadow:0 0 0 3px rgba(236,91,42,.4) !important; }
+  .bslib-sidebar-layout > .sidebar .selectize-input input { color:#1c222b; }
+  .selectize-dropdown { border:none !important; border-radius:6px;
+        box-shadow:0 10px 26px rgba(0,0,0,.35); font-size:14px; }
+  .selectize-dropdown .option { padding:7px 11px; }
+  .selectize-dropdown .active { background:var(--brand) !important; color:#fff !important; }
 
   /* Cards: soft, elevated, subtle hover lift */
   .card { border:none !important; border-radius:12px !important;
@@ -252,6 +294,10 @@ APP_CSS = ui.tags.style("""
            line-height:1.2; }
   .tileA .t-v { font-family:'Cabin',sans-serif; font-weight:700; font-size:21px;
            margin-top:2px; line-height:1.15; font-variant-numeric:tabular-nums; }
+  /* A tile with nothing behind it reads as muted, not as a bold claim of zero */
+  .tileA.is-empty { background:#f1efea; color:#9aa0a8; box-shadow:none;
+           border:1px dashed #ddd8cf; }
+  .tileA.is-empty .t-v { font-weight:600; font-size:15px; padding:3px 0; }
 
   /* Identity strip (Overview) */
   .ident { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px;
@@ -262,11 +308,16 @@ APP_CSS = ui.tags.style("""
   .ident .dot { display:inline-block; width:5px; height:5px; border-radius:50%;
            background:#cfc9bf; vertical-align:middle; margin:0 3px; }
 
-  /* Nav pills */
-  .nav-pills { gap:5px; margin-bottom:16px; }
+  /* Nav pills — one row always; scrolls sideways instead of wrapping */
+  .nav-pills { gap:3px; margin-bottom:14px; flex-wrap:nowrap; overflow-x:auto;
+                         scrollbar-width:none; -ms-overflow-style:none;
+                         padding-bottom:2px; }
+  .nav-pills::-webkit-scrollbar { display:none; }
+  .nav-pills .nav-item { flex:0 0 auto; }
   .nav-pills .nav-link { color:#5b626c; border-radius:8px; font-weight:700;
-                         text-transform:uppercase; letter-spacing:.5px; font-size:13px;
-                         padding:7px 14px; transition:background .15s,color .15s; }
+                         text-transform:uppercase; letter-spacing:.4px; font-size:12px;
+                         padding:6px 11px; white-space:nowrap;
+                         transition:background .15s,color .15s; }
   .nav-pills .nav-link:hover { background:#efece6; color:var(--brand); }
   .nav-pills .nav-link.active { background:var(--brand) !important; color:#fff;
                          box-shadow:0 3px 8px rgba(236,91,42,.32); }
@@ -278,9 +329,38 @@ APP_CSS = ui.tags.style("""
                     margin-bottom:10px; padding-bottom:4px; }
   .plan-card { background:#faf8f5; border-left:4px solid var(--brand);
                padding:12px; margin-bottom:12px; border-radius:8px; }
-  .video-no-data { padding:40px 20px; color:#888; text-align:center;
-                   background:#f4f2ee; border-radius:8px; margin-top:10px; }
   .entry-hint { color:#777; font-size:13px; margin-bottom:8px; }
+
+  /* Empty states — say "not recorded", so a blank card never reads as broken */
+  .no-data, .video-no-data { padding:26px 18px; text-align:center; color:#8b9199;
+               font-size:14px; background:#faf8f5; border:1px dashed #e3ded5;
+               border-radius:8px; }
+  .video-no-data { margin-top:10px; padding:40px 20px; }
+  .video-no-data p { margin:0; }
+
+  /* Video angle picker — segmented control, on-palette.
+     Shiny nests the radio inside its label, so the checked style hangs off the
+     adjacent <span> rather than the label. */
+  /* align-self keeps it from stretching — the card body is a flex column */
+  .vidseg { display:inline-flex; align-self:flex-start; background:#efece6;
+               border-radius:9px; padding:3px; margin-bottom:4px; }
+  .vidseg .shiny-input-container, .vidseg .form-group { width:auto; margin:0; }
+  .vidseg .control-label { display:none; }
+  .vidseg .shiny-options-group { display:flex; gap:2px; }
+  .vidseg label.radio-inline { margin:0; padding:0; cursor:pointer; }
+  .vidseg input[type=radio] { position:absolute; opacity:0; width:0; height:0;
+               pointer-events:none; }
+  .vidseg input[type=radio] + span { display:block;
+               font-family:'Cabin',sans-serif; font-size:12px; font-weight:700;
+               text-transform:uppercase; letter-spacing:.5px; color:#5b626c;
+               padding:6px 16px; border-radius:6px;
+               transition:background .15s, color .15s; }
+  .vidseg label.radio-inline:hover input[type=radio]:not(:checked) + span {
+               color:var(--brand); background:#e5e1d9; }
+  .vidseg input[type=radio]:checked + span { background:var(--brand); color:#fff;
+               box-shadow:0 2px 6px rgba(236,91,42,.3); }
+  .vidseg input[type=radio]:focus-visible + span {
+               outline:2px solid var(--brand); outline-offset:2px; }
 
   .cn-timeline { position:relative; padding:10px 0; }
   .cn-timeline::before { content:''; position:absolute; left:22px;
@@ -309,8 +389,14 @@ app_ui = ui.page_sidebar(
         ui.div(ui.img(src=LOGO_URI, alt="Nomad Baseball"), class_="sidebar-brand")
         if LOGO_URI else ui.h4("Nomad Baseball"),
         ui.hr(),
-        ui.input_select("athlete", "Select Athlete", choices=ATHLETES,
-                        selected=ATHLETES[0] if ATHLETES else None),
+        # Selectize (not input_select) so coaches can type to find an athlete
+        # instead of scrolling a long roster.
+        ui.input_selectize(
+            "athlete", "Select Athlete", choices=ATHLETES,
+            selected=ATHLETES[0] if ATHLETES else None,
+            options={"placeholder": "Type to search athletes…",
+                     "searchField": ["label"], "openOnFocus": True}),
+        ui.div(f"{len(ATHLETES)} athletes on the roster", class_="sidebar-count"),
         ui.download_button("dl_pdf", "Download One-Pager (PDF)",
                            class_="btn-outline-primary btn-sm"),
         ui.div("Nomad Baseball · internal", class_="sidebar-foot"),
@@ -319,7 +405,6 @@ app_ui = ui.page_sidebar(
     FONT_LINK,
     APP_CSS,
     ui.busy_indicators.use(spinners=True, pulse=True),
-    ui.output_ui("athlete_bar"),
     ui.navset_pill(
 
         # ---- OVERVIEW ------------------------------------------------------
@@ -331,12 +416,11 @@ app_ui = ui.page_sidebar(
             ui.card(
                 ui.card_header("Athlete Video"),
                 ui.div(
-                    ui.input_action_button("btn_behind", "Behind View",
-                                           class_="btn-primary btn-sm me-2"),
-                    ui.input_action_button("btn_side", "Side View",
-                                           class_="btn-info btn-sm me-2"),
-                    ui.input_action_button("btn_other", "Other View",
-                                           class_="btn-secondary btn-sm"),
+                    ui.input_radio_buttons(
+                        "video_angle", None,
+                        {"behind": "Behind", "side": "Side", "other": "Other"},
+                        selected="behind", inline=True),
+                    class_="vidseg",
                 ),
                 ui.output_ui("video_player"),
             ),
@@ -367,7 +451,7 @@ app_ui = ui.page_sidebar(
 
         # ---- MOTOR ---------------------------------------------------------
         ui.nav_panel(
-            "Motor Preferences",
+            "Motor",
             ui.layout_columns(
                 ui.card(ui.card_header("Motor Profile"), ui.output_table("motor_table")),
                 ui.card(ui.card_header("Motor Preference Spectrum"),
@@ -379,7 +463,7 @@ app_ui = ui.page_sidebar(
 
         # ---- POWER ---------------------------------------------------------
         ui.nav_panel(
-            "Power Testing",
+            "Power",
             ui.output_ui("power_boxes"),
             ui.layout_columns(
                 ui.card(ui.card_header("Medicine Ball — Shot Put"), output_widget("mb_chart")),
@@ -431,7 +515,7 @@ app_ui = ui.page_sidebar(
 
         # ---- MSS -----------------------------------------------------------
         ui.nav_panel(
-            "MSS / Posture",
+            "MSS",
             ui.card(ui.card_header("Movement Screen & Posture Observations"),
                     ui.output_ui("mss_bullets")),
             icon=ico("person"),
@@ -439,7 +523,7 @@ app_ui = ui.page_sidebar(
 
         # ---- PLAN ----------------------------------------------------------
         ui.nav_panel(
-            "Athlete Plan",
+            "Plan",
             ui.card(ui.card_header("Development Plan"), ui.output_ui("plan_cards")),
             icon=ico("clipboard-list"),
         ),
@@ -464,7 +548,7 @@ app_ui = ui.page_sidebar(
 
         # ---- COACHES NOTES -------------------------------------------------
         ui.nav_panel(
-            "Coaches Notes",
+            "Notes",
             ui.output_ui("cn_boxes"),
             ui.card(ui.card_header("Development Timeline"), ui.output_ui("coaches_timeline")),
             icon=ico("chalkboard-user"),
@@ -530,7 +614,12 @@ app_ui = ui.page_sidebar(
 
         id="tabs",
     ),
-    title="Athlete Dashboard",
+    # Title bar carries the current athlete, so every tab shows who you're viewing.
+    title=ui.span(
+        ui.span("Athlete Dashboard", class_="app-title"),
+        ui.output_ui("nav_athlete", inline=True),
+        class_="app-titlebar",
+    ),
     theme=THEME,
     fillable=False,
 )
@@ -603,10 +692,12 @@ def server(input, output, session):
     def r_notes():
         return D.get_notes(DB(), input.athlete())
 
-    # -- Header bar + PDF download
+    # -- Title bar athlete + PDF download
     @render.ui
-    def athlete_bar():
-        return ui.div(ui.HTML(f"Viewing: <b>{input.athlete()}</b>"), class_="athlete-bar")
+    def nav_athlete():
+        return ui.span(
+            ui.span("Viewing", class_="nav-ath-lbl"), input.athlete(),
+            class_="nav-ath")
 
     @render.download(filename=lambda: f"{input.athlete()}_one_pager.pdf")
     def dl_pdf():
@@ -675,33 +766,20 @@ def server(input, output, session):
             ),
         )
 
-    # -- Video angle selection
-    selected_video = reactive.value("behind")
-
-    @reactive.effect
-    @reactive.event(input.btn_behind)
-    def _(): selected_video.set("behind")
-
-    @reactive.effect
-    @reactive.event(input.btn_side)
-    def _(): selected_video.set("side")
-
-    @reactive.effect
-    @reactive.event(input.btn_other)
-    def _(): selected_video.set("other")
-
+    # -- Video angle selection (segmented control; resets to Behind per athlete)
     @reactive.effect
     @reactive.event(input.athlete)
-    def _(): selected_video.set("behind")
+    def _():
+        ui.update_radio_buttons("video_angle", selected="behind")
 
     @render.ui
     def video_player():
         b = r_bio()
-        angle = selected_video()
+        angle = input.video_angle()
         col_map = {"behind": "Video Behind", "side": "Video Side", "other": "Video Other"}
         vid = make_video_ui(D.cell(b, col_map[angle]))
         if vid is None:
-            return ui.div(ui.p(f"No {angle} view available for {input.athlete()}."),
+            return ui.div(ui.p(f"No {angle} view uploaded for {input.athlete()}."),
                           class_="video-no-data")
         return vid
 
@@ -908,14 +986,14 @@ def server(input, output, session):
     def pitch_arsenal():
         pitches = _pitches(r_pitching())
         if not pitches:
-            return ui.p("No data")
+            return no_data("No pitches recorded for this athlete")
         return ui.tags.ul(*[ui.tags.li(x) for x in pitches])
 
     @render.ui
     def pitch_sw():
         p = r_pitching()
         if p.empty:
-            return ui.p("No data")
+            return no_data("No pitching evaluation recorded")
         return ui.TagList(
             ui.div(ui.tags.b("Strengths: "), D.cell(p, "Strengths", "—")),
             ui.hr(),
@@ -926,7 +1004,7 @@ def server(input, output, session):
     def pitch_goals():
         p = r_pitching()
         if p.empty:
-            return ui.p("No data")
+            return no_data("No pitching goals recorded")
         return ui.p(D.cell(p, "Goals", "—"))
 
     @render_widget
@@ -969,12 +1047,12 @@ def server(input, output, session):
     def context_bullets():
         c = r_context()
         if c.empty:
-            return ui.p("No context data")
+            return no_data("No background recorded for this athlete")
         cols = [col for col in c.columns if col.startswith("Context")]
         items = [D.cell(c, col) for col in cols]
         items = [x for x in items if x is not None]
         if not items:
-            return ui.p("No context data")
+            return no_data("No background recorded for this athlete")
         return ui.tags.ul(*[ui.tags.li(x) for x in items])
 
     # =========================================================================
@@ -1044,12 +1122,12 @@ def server(input, output, session):
     def mss_bullets():
         m = r_mss()
         if m.empty:
-            return ui.p("No MSS/Posture data")
+            return no_data("No movement screen recorded for this athlete")
         cols = [col for col in m.columns if col.startswith("Observation")]
         items = [D.cell(m, col) for col in cols]
         items = [x for x in items if x is not None]
         if not items:
-            return ui.p("No significant observations recorded")
+            return no_data("No significant observations recorded")
         return ui.tags.ul(*[ui.tags.li(x) for x in items])
 
     # =========================================================================
@@ -1059,7 +1137,7 @@ def server(input, output, session):
     def plan_cards():
         p = r_plan()
         if p.empty:
-            return ui.p("No plan data")
+            return no_data("No development plan recorded")
 
         def card(title, content, color):
             return ui.div(
